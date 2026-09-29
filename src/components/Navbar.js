@@ -74,13 +74,16 @@ const Navbar = ({ account, connectWallet, disconnectWallet, isConnecting, networ
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             aria-label="Toggle navigation"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="mainNav"
           >
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </motion.button>
           
           <AnimatePresence>
-            {(isMobileMenuOpen || window.innerWidth > 992) && (
+            {(
               <motion.div 
+                id="mainNav"
                 className={`collapse navbar-collapse premium-navbar-collapse ${isMobileMenuOpen ? 'show' : ''}`}
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}

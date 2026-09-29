@@ -114,7 +114,7 @@ contract MetaMaskVisibleSoulbound {
     
     // ============ CERTIFICATE FUNCTIONS ============
     
-    function claimCertificate(bytes32[] calldata _merkleProof, string calldata _tokenURI) external {
+    function claimCertificate(bytes32[] calldata _merkleProof, string calldata _tokenURI) public {
         address soul = msg.sender;
         
         if (hasClaimed[soul]) revert CertificateAlreadyClaimed();
@@ -142,7 +142,7 @@ contract MetaMaskVisibleSoulbound {
     
     // Legacy function name
     function claimSoulboundCertificate(bytes32[] calldata _merkleProof, string calldata _tokenURI) external {
-        this.claimCertificate(_merkleProof, _tokenURI);
+        claimCertificate(_merkleProof, _tokenURI);
     }
     
     function isEligible(address _address, bytes32[] calldata _merkleProof) external view returns (bool) {

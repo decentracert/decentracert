@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'framer-motion';
 import StudentPortal from './components/StudentPortal';
@@ -18,102 +18,69 @@ function App() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
 
-  // Check if MetaMask is installed
-  const checkIfMetaMaskIsInstalled = () => {
-    return window.ethereum !== undefined;
+  const setWallet = (nextProvider, accounts, chainId) => {
+    const local = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    const supported = chainId === 11155111 || (local && chainId === 31337);
+    setProvider(nextProvider);
+    setAccount(accounts[0] || '');
+    setSigner(accounts.length && supported ? nextProvider.getSigner(accounts[0]) : null);
+    setNetworkName(chainId === 11155111 ? 'sepolia' : chainId === 31337 ? 'local' : String(chainId));
+    setError(accounts.length && !supported ? 'Switch your wallet to Sepolia to issue or claim certificates.' : '');
   };
 
-  // Initialize ethers provider and check account
   useEffect(() => {
-    const initializeProvider = async () => {
-      if (checkIfMetaMaskIsInstalled()) {
-        try {
-          // Set up provider
-          const provider = new ethers.providers.Web3Provider(window.ethereum);
-          setProvider(provider);
-
-          // Get network
-          const network = await provider.getNetwork();
-          setNetworkName(network.name);
-
-          // Check if already connected
-          const accounts = await provider.listAccounts();
-          if (accounts.length > 0) {
-            setAccount(accounts[0]);
-            setSigner(provider.getSigner());
-          }
-
-          // Listen for account changes
-          window.ethereum.on('accountsChanged', (accounts) => {
-            if (accounts.length > 0) {
-              setAccount(accounts[0]);
-              setSigner(provider.getSigner());
-            } else {
-              setAccount('');
-              setSigner(null);
-            }
-          });
-
-          // Listen for chain changes
-          window.ethereum.on('chainChanged', () => {
-            window.location.reload();
-          });
-        } catch (error) {
-          console.error("Error initializing provider:", error);
-          setError("Failed to connect to Ethereum network");
+    const wallet = window.ethereum;
+    if (!wallet) return;
+    let active = true;
+    let version = 0;
+    const syncWallet = async () => {
+      const id = ++version;
+      setSigner(null);
+      try {
+        const nextProvider = new ethers.providers.Web3Provider(wallet, 'any');
+        const [accounts, network] = await Promise.all([nextProvider.listAccounts(), nextProvider.getNetwork()]);
+        if (active && id === version) setWallet(nextProvider, accounts, network.chainId);
+      } catch {
+        if (active && id === version) {
+          setAccount('');
+          setProvider(null);
+          setSigner(null);
         }
-      } else {
-        setError("MetaMask is not installed. install MetaMask to use this app.");
       }
     };
-
-    initializeProvider();
+    syncWallet();
+    wallet.on?.('accountsChanged', syncWallet);
+    wallet.on?.('chainChanged', syncWallet);
+    return () => {
+      active = false;
+      wallet.removeListener?.('accountsChanged', syncWallet);
+      wallet.removeListener?.('chainChanged', syncWallet);
+    };
   }, []);
 
-  // Connect wallet function
   const connectWallet = async () => {
-    if (!checkIfMetaMaskIsInstalled()) {
-      setError("MetaMask is not installed. Please install MetaMask to use this app.");
+    if (!window.ethereum) {
+      setError('Install MetaMask to issue or claim certificates. Public verification works without a wallet.');
       return;
     }
-
     setIsConnecting(true);
     setError('');
-
     try {
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      });
-      
-      if (accounts.length > 0) {
-        setAccount(accounts[0]);
-        
-        // Set up provider and signer
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        setProvider(provider);
-        setSigner(provider.getSigner());
-        
-        // Get network
-        const network = await provider.getNetwork();
-        setNetworkName(network.name);
-
-        // Check if on Sepolia
-        if (network.name !== 'sepolia') {
-          setError('Please connect to the Sepolia test network');
-        }
-      }
-    } catch (error) {
-      console.error("Error connecting wallet:", error);
-      setError("Failed to connect wallet");
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const nextProvider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+      const network = await nextProvider.getNetwork();
+      setWallet(nextProvider, accounts, network.chainId);
+    } catch (err) {
+      setError(err.code === 4001 ? 'Wallet connection cancelled.' : 'Could not connect your wallet. Try again.');
     } finally {
       setIsConnecting(false);
     }
   };
 
-  // Disconnect wallet function
   const disconnectWallet = () => {
     setAccount('');
     setSigner(null);
+    setError('');
   };
 
   return (

@@ -38,5 +38,6 @@ coverage
 # Etherscan
 .etherscan-db 
 
-*.md
-!README.md
+/src/artifacts
+/PLAN.md
+/.demo

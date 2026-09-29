@@ -1,148 +1,34 @@
 import { ethers } from 'ethers';
 import CertificateNFT from '../artifacts/contracts/CertificateNFT.sol/CertificateNFT.json';
 
-/**
- * Get an instance of the CertificateNFT contract using ethers.js
- * @param {string} contractAddress - The deployed contract address
- * @param {object} signer - Ethers.js signer object
- * @returns {Contract} - Contract instance
- */
-export const getCertificateContract = (contractAddress, signer) => {
-  if (!contractAddress || !signer) {
-    throw new Error('Contract address and signer are required');
+export const getCertificateContract = (addr, provider) => {
+  if (!ethers.utils.isAddress(addr) || addr === ethers.constants.AddressZero || !provider) {
+    throw new Error('A valid contract address and wallet connection are required.');
   }
-  return new ethers.Contract(contractAddress, CertificateNFT.abi, signer);
+  return new ethers.Contract(addr, CertificateNFT.abi, provider);
 };
 
-/**
- * Get an instance of the CertificateNFT contract with read-only access
- * @param {string} contractAddress - The deployed contract address
- * @param {object} provider - Ethers.js provider object
- * @returns {Contract} - Contract instance
- */
-export const getCertificateContractReadOnly = (contractAddress, provider) => {
-  if (!contractAddress || !provider) {
-    throw new Error('Contract address and provider are required');
-  }
-  return new ethers.Contract(contractAddress, CertificateNFT.abi, provider);
+export const getCertificateContractReadOnly = getCertificateContract;
+
+export const getEventDetails = async (addr, provider) => {
+  const contract = getCertificateContract(addr, provider);
+  if (await provider.getCode(addr) === '0x') throw new Error('No contract found at this address on the connected network.');
+  const [eventName, merkleRoot, owner] = await Promise.all([contract.name(), contract.merkleRoot(), contract.owner()]);
+  return { eventName, merkleRoot, owner };
 };
 
-/**
- * Get event details from a contract
- * @param {string} contractAddress - The deployed contract address
- * @param {object} provider - Ethers.js provider object
- * @returns {object} - Event details
- */
-export const getEventDetails = async (contractAddress, provider) => {
+export const hasAddressClaimed = (addr, wallet, provider) => getCertificateContract(addr, provider).hasClaimed(wallet);
+
+export const isAddressEligible = (addr, wallet, proof, provider) => getCertificateContract(addr, provider).isEligible(wallet, proof);
+
+export const claimCertificate = async (addr, proof, tokenUri, signer) => {
+  const contract = getCertificateContract(addr, signer);
+  const tx = await contract.claimCertificate(proof, tokenUri);
   try {
-    const contract = getCertificateContractReadOnly(contractAddress, provider);
-    
-    const eventName = await contract.eventName();
-    const eventDescription = await contract.eventDescription();
-    const eventDate = await contract.eventDate();
-    const eventImageURI = await contract.eventImageURI();
-    const merkleRoot = await contract.merkleRoot();
-    
-    return {
-      eventName,
-      eventDescription,
-      eventDate,
-      eventImageURI,
-      merkleRoot
-    };
-  } catch (error) {
-    console.error('Error getting event details:', error);
-    throw error;
-  }
-};
-
-/**
- * Check if an address has already claimed a certificate
- * @param {string} contractAddress - The deployed contract address
- * @param {string} address - The address to check
- * @param {object} provider - Ethers.js provider object
- * @returns {boolean} - Whether the address has claimed
- */
-export const hasAddressClaimed = async (contractAddress, address, provider) => {
-  try {
-    const contract = getCertificateContractReadOnly(contractAddress, provider);
-    return await contract.hasClaimed(address);
-  } catch (error) {
-    console.error('Error checking if address has claimed:', error);
-    throw error;
-  }
-};
-
-/**
- * Check if an address is eligible to claim a certificate
- * @param {string} contractAddress - The deployed contract address
- * @param {string} address - The address to check
- * @param {array} merkleProof - The Merkle proof for the address
- * @param {object} provider - Ethers.js provider object
- * @returns {boolean} - Whether the address is eligible
- */
-export const isAddressEligible = async (contractAddress, address, merkleProof, provider) => {
-  try {
-    // Use the standard contract
-    const contract = getCertificateContractReadOnly(contractAddress, provider);
-    return await contract.isEligible(address, merkleProof);
-  } catch (error) {
-    console.error('Error checking if address is eligible:', error);
-    throw error;
-  }
-};
-
-/**
- * Claim a certificate
- * @param {string} contractAddress - The deployed contract address
- * @param {array} merkleProof - The Merkle proof for the address
- * @param {string} tokenURI - The token URI with the certificate metadata
- * @param {object} signer - Ethers.js signer object
- * @returns {object} - Transaction receipt
- */
-export const claimCertificate = async (contractAddress, merkleProof, tokenURI, signer) => {
-  try {
-    console.log('🔍 Claiming certificate with parameters:');
-    console.log('Contract address:', contractAddress);
-    console.log('Merkle proof:', merkleProof);
-    console.log('Token URI:', tokenURI);
-    console.log('Signer address:', await signer.getAddress());
-
-    // Use the standard contract
-    const contract = getCertificateContract(contractAddress, signer);
-    console.log('✅ Contract instance created successfully');
-
-    console.log('⛽ Estimating gas...');
-    const gasEstimate = await contract.estimateGas.claimCertificate(merkleProof, tokenURI);
-    console.log('Gas estimate:', gasEstimate.toString());
-    
-    const gasLimit = gasEstimate.mul(120).div(100); // Add 20%
-    console.log('Gas limit (with 20% buffer):', gasLimit.toString());
-
-    console.log('🚀 Sending transaction...');
-    const tx = await contract.claimCertificate(merkleProof, tokenURI, { gasLimit });
-    console.log('Transaction sent:', tx.hash);
-
-    console.log('⏳ Waiting for confirmation...');
-    const receipt = await tx.wait();
-    console.log('✅ Transaction confirmed:', receipt);
-    
-    return receipt;
-  } catch (error) {
-    console.error('❌ Error claiming certificate:', error);
-    
-    // Provide more specific error messages
-    if (error.code === 4001) {
-      throw new Error('Transaction was rejected by user.');
-    } else if (error.message && error.message.includes('already claimed')) {
-      throw new Error('You have already claimed this certificate.');
-    } else if (error.message && error.message.includes('Invalid Merkle proof')) {
-      throw new Error('Invalid Merkle proof. Please check your proof and try again.');
-    } else if (error.message && error.message.includes('Contract address and signer are required')) {
-      throw new Error('Invalid contract address or wallet connection. Please check your inputs.');
-    } else {
-      throw error;
-    }
+    return await tx.wait();
+  } catch (err) {
+    if (err.code === 'TRANSACTION_REPLACED' && !err.cancelled && err.receipt?.status === 1) return err.receipt;
+    throw err;
   }
 };
 

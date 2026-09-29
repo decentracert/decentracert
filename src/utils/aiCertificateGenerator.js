@@ -624,7 +624,7 @@ const createSolidBackgroundCertificate = (canvas, ctx, eventData, style, organiz
 /**
  * Canvas-only certificate generation (ultimate fallback)
  */
-const generateCanvasOnlyCertificate = async (eventData, style) => {
+const generateCanvasOnlyCertificate = async (eventData, style, organizerData = {}) => {
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');

@@ -5,12 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"green,blue\" \"npm run server\" \"craco start\"",
+    "dev": "npm run compile && concurrently -n \"SERVER,CLIENT\" -c \"green,blue\" \"npm run server\" \"craco start\"",
     "server": "node server.js",
-    "build": "craco build",
+    "build": "hardhat compile && craco build",
     "test": "craco test",
     "eject": "react-scripts eject",
-    "deploy": "npx hardhat run scripts/deploy.js --network sepolia"
+    "deploy": "npx hardhat run scripts/deploy.js --network sepolia",
+    "test:contracts": "hardhat test",
+    "compile": "hardhat compile"
   },
   "keywords": [
     "blockchain",

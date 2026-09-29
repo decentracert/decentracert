@@ -48,8 +48,8 @@ const CertificateVerifier = () => {
     tap: { scale: 0.95 }
   };
 
-  const [contractAddress, setContractAddress] = useState('');
-  const [walletAddress, setWalletAddress] = useState('');
+  const [contractAddress, setContractAddress] = useState(() => new URLSearchParams(window.location.search).get('contract') || '');
+  const [walletAddress, setWalletAddress] = useState(() => new URLSearchParams(window.location.search).get('wallet') || '');
   const [tokenId, setTokenId] = useState('1');
   const [verificationResult, setVerificationResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -58,7 +58,7 @@ const CertificateVerifier = () => {
   // Contract ABI for verification functions
   const contractABI = [
     "function hasSoulboundCertificate(address) view returns (bool)",
-    "function soulboundOwnerOf(uint256) view returns (address)",
+    "function ownerOf(uint256) view returns (address)",
     "function getSoulboundCertificateDetails(address) view returns (bool exists, uint256 tokenId, string memory uri)",
     "function tokenURI(uint256) view returns (string)",
     "function name() view returns (string)",
@@ -123,7 +123,7 @@ const CertificateVerifier = () => {
         const [exists, certTokenId, uri] = await contract.getSoulboundCertificateDetails(walletAddress);
         
         // Verify token ownership
-        const tokenOwner = await contract.soulboundOwnerOf(certTokenId);
+        const tokenOwner = await contract.ownerOf(certTokenId);
         
         ownershipDetails = {
           exists,
@@ -154,7 +154,7 @@ const CertificateVerifier = () => {
         },
         walletInfo: {
           address: walletAddress,
-          hasCertificate,
+          hasCertificate: hasCertificate && ownershipDetails?.exists && ownershipDetails?.isCorrectOwner,
           balance: balance.toString()
         },
         ownershipDetails,
