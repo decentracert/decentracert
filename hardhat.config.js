@@ -14,11 +14,12 @@ module.exports = {
     }
   },
   networks: {
+    localhost: {
+      url: process.env.LOCAL_RPC_URL || "http://127.0.0.1:8545"
+    },
     sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || "https://sepolia.infura.io/v3/",
+      url: process.env.SEPOLIA_RPC_URL || process.env.SEPOLIA_API_URL || "https://ethereum-sepolia-rpc.publicnode.com",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      gasPrice: 1000000000, // 1 gwei - ultra low gas price
-      gas: 3000000, // Set reasonable gas limit
     },
   },
   etherscan: {
@@ -30,4 +31,4 @@ module.exports = {
     cache: "./cache",
     artifacts: "./src/artifacts"
   }
-}; 
+};

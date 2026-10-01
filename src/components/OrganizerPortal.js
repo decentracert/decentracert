@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateAllMerkleProofs } from '../utils/merkleUtils';
-import { deployCertificateContractOptimized, deployCertificateContractUltraLow, updateMerkleRoot, updateEventDetails } from '../utils/contractUtils';
+import { deployCertificateContract } from '../utils/contractUtils';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import AICertificateGenerator from './AICertificateGenerator';
 import { ethers } from 'ethers';
@@ -88,7 +88,6 @@ The contract is deployed and working. You can proceed with certificate distribut
   const [certificateImage, setCertificateImage] = useState(null);
   const [contractAddress, setContractAddress] = useState('');
   const [checkingContract, setCheckingContract] = useState(false);
-  const [deploymentMode, setDeploymentMode] = useState('balanced'); // 'balanced' or 'cheap'
   const [currentGasPrice, setCurrentGasPrice] = useState(null);
   const [merkleRoot, setMerkleRoot] = useState('');
   const [deployedContract, setDeployedContract] = useState('');
@@ -383,35 +382,11 @@ The contract is deployed and working. You can proceed with certificate distribut
       const network = await signer.provider.getNetwork();
       setNetworkName(network.name || 'Unknown');
       
-      let deployedContract;
-      
-      if (deploymentMode === 'cheap') {
-        deployedContract = await deployCertificateContractUltraLow(
-          {
-            name: eventName,
-            symbol: eventSymbol,
-            eventName: eventName,
-            eventDescription: eventDescription,
-            eventDate: eventDate,
-            eventImageURI: `ipfs://${metadataHash}`
-          },
-          merkleRoot,
-          signer
-        );
-      } else {
-        deployedContract = await deployCertificateContractOptimized(
-          {
-            name: eventName,
-            symbol: eventSymbol,
-            eventName: eventName,
-            eventDescription: eventDescription,
-            eventDate: eventDate,
-            eventImageURI: `ipfs://${metadataHash}`
-          },
-          merkleRoot,
-          signer
-        );
-      }
+      const deployedContract = await deployCertificateContract({
+        name: eventName,
+        symbol: eventSymbol,
+        metadataUri: `ipfs://${metadataHash}`
+      }, merkleRoot, signer);
 
       const contractAddress = deployedContract.address;
       setDeployedContract(contractAddress);
@@ -432,7 +407,7 @@ The contract is deployed and working. You can proceed with certificate distribut
           tokenURI: `ipfs://${metadataHash}`,
           imageHash: uploadedImageHash,
           metadataHash: metadataHash,
-          deploymentMode: deploymentMode,
+          deploymentMode: 'wallet',
           gasPrice: gasPrice,
           deployedAt: new Date().toISOString(),
           issuer: account,
@@ -579,48 +554,6 @@ A comprehensive data file has been downloaded with all the information needed fo
     }
   };
 
-  // Handle contract updates
-  const handleUpdateContract = async (e) => {
-    e.preventDefault();
-    
-    if (!account || !signer) {
-      setError('Please connect your wallet first.');
-      return;
-    }
-
-    if (!contractAddress || !ethers.utils.isAddress(contractAddress)) {
-      setError('Please enter a valid contract address.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setSuccessMsg('');
-
-    try {
-      if (merkleRoot) {
-        await updateMerkleRoot(contractAddress, merkleRoot, signer);
-        setSuccessMsg('Merkle root updated successfully!');
-      }
-
-      if (eventName && eventSymbol && eventDescription && eventDate) {
-        await updateEventDetails(contractAddress, {
-          eventName,
-          eventDescription,
-          eventDate,
-          eventImageURI: `ipfs://${metadataHash}`
-        }, signer);
-        setSuccessMsg(prevMsg => prevMsg + '\nEvent details updated successfully!');
-      }
-    } catch (error) {
-      console.error('Error updating contract:', error);
-      setError('Failed to update contract: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Render Merkle proofs JSON
   const renderMerkleProofsJSON = () => {
     if (!merkleProofs) return null;
 
@@ -1208,27 +1141,7 @@ A comprehensive data file has been downloaded with all the information needed fo
               </div>
               <div className="card-body">
                 <form onSubmit={handleDeployContract}>
-                  <div className="mb-3">
-                    <label className="form-label">Deployment Mode</label>
-                    <select
-                      className="form-control"
-                      value={deploymentMode}
-                      onChange={(e) => setDeploymentMode(e.target.value)}
-                      style={{
-                        backgroundColor: '#2d3748',
-                        color: '#ffffff',
-                        border: '1px solid #4a5568'
-                      }}
-                    >
-                      <option value="balanced" style={{ backgroundColor: '#2d3748', color: '#ffffff' }}>Balanced (Recommended)</option>
-                      <option value="cheap" style={{ backgroundColor: '#2d3748', color: '#ffffff' }}>Ultra Low Cost</option>
-                    </select>
-                    <div className="form-text">
-                      {deploymentMode === 'balanced' 
-                        ? 'Optimized for cost and speed balance.' 
-                        : 'Minimal cost, may take longer to confirm.'}
-                    </div>
-                  </div>
+                  <p>Review the network fee in your wallet before confirming.</p>
 
                   {currentGasPrice && (
                 <div className="mb-3">
@@ -1340,7 +1253,7 @@ A comprehensive data file has been downloaded with all the information needed fo
                           merkleRoot: merkleRoot,
                           merkleProofs: merkleProofs,
                           participants: addresses.split('\n').filter(addr => addr.trim() !== ''),
-                          deploymentMode: deploymentMode,
+                          deploymentMode: 'wallet',
                           gasPrice: currentGasPrice
                         };
 

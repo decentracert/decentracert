@@ -41,6 +41,7 @@ function StudentPortal({ account, provider, signer, connectWallet }) {
         getEventDetails(contractAddress, provider),
         hasAddressClaimed(contractAddress, account, provider)
       ]);
+      if (event.metadataUri !== tokenUri) throw new Error('The metadata URI does not match the issuer record.');
       if (!verifyMerkleProof(account, proof, event.merkleRoot)) throw new Error('This proof does not match your wallet and contract.');
       if (!alreadyClaimed && !await isAddressEligible(contractAddress, account, proof, provider)) {
         throw new Error('This wallet is not eligible for the event.');

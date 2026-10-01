@@ -1,92 +1,25 @@
-const { ethers } = require("hardhat");
-const { MerkleTree } = require("merkletreejs");
-const keccak256 = require("keccak256");
+const { ethers } = require('hardhat');
+const fs = require('node:fs');
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
-
-  console.log("Deploying contracts with the account:", deployer.address);
-  console.log("Account balance:", (await deployer.getBalance()).toString());
-
-  // Sample event details - you can replace these with actual event details
-  const eventName = "University Blockchain Workshop 2023";
-  const eventSymbol = "UBW23";
-  const eventDescription = "Certification for completing the Blockchain Workshop";
-  const eventDate = "2023-06-15";
-  const eventImageURI = "ipfs://QmYourIPFSHash"; // Replace with actual IPFS hash
-
-  // Sample addresses for the whitelist - replace with actual addresses
-  const whitelistedAddresses = [
-    "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-    // Add more addresses as needed
-  ];
-
-  // Create merkle tree from the whitelisted addresses
-  const leafNodes = whitelistedAddresses.map(addr => keccak256(addr));
-  const merkleTree = new MerkleTree(leafNodes, keccak256, { sortPairs: true });
-  const merkleRoot = merkleTree.getHexRoot();
-
-  console.log("Merkle Root:", merkleRoot);
-
-  // Deploy the contract
-  const CertificateNFT = await ethers.getContractFactory("CertificateNFT");
-  const certificateNFT = await CertificateNFT.deploy(
-    eventName,
-    eventSymbol,
-    eventName,
-    eventDescription,
-    eventDate,
-    eventImageURI,
-    merkleRoot
-  );
-
-  await certificateNFT.deployed();
-
-  console.log("CertificateNFT deployed to:", certificateNFT.address);
-  console.log("Transaction hash:", certificateNFT.deployTransaction.hash);
-
-  // Verify merkle proof for sample address (for testing)
-  const testAddress = whitelistedAddresses[0];
-  const hexProof = merkleTree.getHexProof(keccak256(testAddress));
-  console.log(`\nMerkle Proof for ${testAddress}:`, hexProof);
-
-  // Save the proofs to a JSON file (commented out - uncomment when needed)
-  // const fs = require("fs");
-  // const proofs = {};
-  // whitelistedAddresses.forEach(address => {
-  //   proofs[address] = merkleTree.getHexProof(keccak256(address));
-  // });
-  // fs.writeFileSync("merkle-proofs.json", JSON.stringify(proofs, null, 2));
-  // console.log("Merkle proofs saved to merkle-proofs.json");
-
-  console.log("\nWaiting for block confirmations...");
-  await certificateNFT.deployTransaction.wait(5);
-  
-  // Verify contract on Etherscan
-  console.log("\nVerifying contract on Etherscan...");
-  try {
-    await hre.run("verify:verify", {
-      address: certificateNFT.address,
-      constructorArguments: [
-        eventName,
-        eventSymbol,
-        eventName,
-        eventDescription,
-        eventDate,
-        eventImageURI,
-        merkleRoot,
-      ],
-    });
-    console.log("Contract verified on Etherscan!");
-  } catch (error) {
-    console.error("Error verifying contract:", error);
-  }
+  if (!process.env.EVENT_FILE) throw new Error('Set EVENT_FILE to a JSON file with name, symbol, metadataUri and merkleRoot.');
+  const event = JSON.parse(fs.readFileSync(process.env.EVENT_FILE, 'utf8'));
+  const [signer] = await ethers.getSigners();
+  if (!signer) throw new Error('Set PRIVATE_KEY for the deployment wallet.');
+  const factory = await ethers.getContractFactory('CertificateNFT', signer);
+  const contract = await factory.deploy(event.name, event.symbol, event.metadataUri, event.merkleRoot);
+  await contract.deployed();
+  console.log(JSON.stringify({
+    contractAddress: contract.address,
+    chainId: (await signer.provider.getNetwork()).chainId,
+    issuer: await signer.getAddress(),
+    metadataUri: event.metadataUri,
+    merkleRoot: event.merkleRoot,
+    transactionHash: contract.deployTransaction.hash
+  }, null, 2));
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  }); 
+main().catch(err => {
+  console.error(err.reason || err.message);
+  process.exitCode = 1;
+});

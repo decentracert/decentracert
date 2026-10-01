@@ -13,7 +13,7 @@ const ANALYTICS_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function hasSoulboundCertificate(address) view returns (bool)",
   "function getSoulboundCertificateDetails(address) view returns (bool exists, uint256 tokenId, string memory uri)",
-  "event SoulboundCertificateIssued(address indexed soul, uint256 indexed tokenId, string tokenURI)",
+  "event SoulboundCertificateIssued(address indexed soul, uint256 indexed tokenId, string tokenUri)",
   "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
 ];
 
@@ -50,7 +50,7 @@ export const getContractAnalytics = async (contractAddress, provider) => {
       const claimData = {
         address: event.args.soul,
         tokenId: event.args.tokenId.toString(),
-        tokenURI: event.args.tokenURI,
+        tokenURI: event.args.tokenUri,
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
         timestamp: block.timestamp,
