@@ -8,6 +8,7 @@ import CertificateVerifier from './components/CertificateVerifier';
 import MyCertificatesDashboard from './components/MyCertificatesDashboard';
 import Navbar from './components/Navbar';
 import HomePage from './components/HomePage';
+import { apiJson } from './utils/apiUtils';
 import './App.css';
 
 function App() {
@@ -17,15 +18,25 @@ function App() {
   const [networkName, setNetworkName] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
+  const [chainId, setChainId] = useState(0);
+  const [cfg, setCfg] = useState(null);
+  const [configError, setConfigError] = useState('');
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    apiJson('/api/config', { signal: ctrl.signal }).then(setCfg).catch(err => {
+      if (err.name !== 'AbortError') setConfigError('Could not load the server network. Reload the page to try again.');
+    });
+    return () => ctrl.abort();
+  }, []);
 
   const setWallet = (nextProvider, accounts, chainId) => {
-    const local = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-    const supported = chainId === 11155111 || (local && chainId === 31337);
     setProvider(nextProvider);
     setAccount(accounts[0] || '');
-    setSigner(accounts.length && supported ? nextProvider.getSigner(accounts[0]) : null);
+    setSigner(accounts.length ? nextProvider.getSigner(accounts[0]) : null);
+    setChainId(chainId);
     setNetworkName(chainId === 11155111 ? 'sepolia' : chainId === 31337 ? 'local' : String(chainId));
-    setError(accounts.length && !supported ? 'Switch your wallet to Sepolia to issue or claim certificates.' : '');
+    setError('');
   };
 
   useEffect(() => {
@@ -84,23 +95,24 @@ function App() {
   };
 
   return (
-    <motion.div 
+    <motion.div
       className="app"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <Navbar 
-        account={account} 
-        connectWallet={connectWallet} 
-        disconnectWallet={disconnectWallet} 
+      <Navbar
+        account={account}
+        connectWallet={connectWallet}
+        disconnectWallet={disconnectWallet}
         isConnecting={isConnecting}
         networkName={networkName}
       />
-      
+
+      {(configError || (account && cfg && chainId !== cfg.chainId)) && <div className="container mt-3"><p className="alert alert-warning" role="alert">{configError || 'Switch your wallet to ' + cfg.networkName + ' to issue or claim certificates.'}</p></div>}
       <AnimatePresence>
         {error && (
-          <motion.div 
+          <motion.div
             className="container mt-3"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -114,7 +126,7 @@ function App() {
         )}
       </AnimatePresence>
 
-      <motion.div 
+      <motion.div
         className="container py-4"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -122,16 +134,17 @@ function App() {
       >
         <Routes>
           <Route path="/" element={<HomePage account={account} connectWallet={connectWallet} />} />
-          <Route 
-            path="/student" 
+          <Route
+            path="/student"
             element={
-              <StudentPortal 
-                account={account} 
-                provider={provider} 
-                signer={signer} 
+              <StudentPortal
+                account={account}
+                provider={provider}
+                signer={chainId === cfg?.chainId ? signer : null}
+                cfg={cfg}
                 connectWallet={connectWallet}
               />
-            } 
+            }
           />
           <Route
             path="/organizer"
@@ -139,7 +152,8 @@ function App() {
               <OrganizerPortal
                 account={account}
                 provider={provider}
-                signer={signer}
+                signer={chainId === cfg?.chainId ? signer : null}
+                cfg={cfg}
                 connectWallet={connectWallet}
               />
             }
@@ -154,14 +168,15 @@ function App() {
               <MyCertificatesDashboard
                 account={account}
                 provider={provider}
+                cfg={cfg}
                 connectWallet={connectWallet}
               />
             }
           />
         </Routes>
       </motion.div>
-      
-      <motion.footer 
+
+      <motion.footer
         className="footer mt-auto py-4 premium-footer"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -175,4 +190,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;

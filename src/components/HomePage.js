@@ -77,8 +77,8 @@ const HomePage = ({ account, connectWallet }) => {
     },
     {
       icon: Share2,
-      title: "Transferable",
-      description: "Share your achievements with others through the blockchain."
+      title: "Non-transferable",
+      description: "Certificates stay with the wallet that claimed them. Share a verification link when needed."
     }
   ];
 

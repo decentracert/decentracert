@@ -1,377 +1,115 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ethers } from 'ethers';
-import { Search, Shield, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { apiJson, publicUrl, readMetadata, validAddress, verificationUrl } from '../utils/apiUtils';
 
-const CertificateVerifier = () => {
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.2
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.6,
-        ease: "easeOut"
-      }
-    }
-  };
-
-  const cardVariants = {
-    hidden: { opacity: 0, scale: 0.9 },
-    visible: {
-      opacity: 1,
-      scale: 1,
-      transition: {
-        duration: 0.5,
-        ease: "easeOut"
-      }
-    }
-  };
-
-  const buttonVariants = {
-    hover: { 
-      scale: 1.05, 
-      y: -2,
-      boxShadow: "0 8px 25px rgba(139, 92, 246, 0.4)"
-    },
-    tap: { scale: 0.95 }
-  };
-
-  const [contractAddress, setContractAddress] = useState(() => new URLSearchParams(window.location.search).get('contract') || '');
-  const [walletAddress, setWalletAddress] = useState(() => new URLSearchParams(window.location.search).get('wallet') || '');
-  const [tokenId, setTokenId] = useState('1');
-  const [verificationResult, setVerificationResult] = useState(null);
-  const [loading, setLoading] = useState(false);
+function CertificateVerifier() {
+  const [params, setParams] = useSearchParams();
+  const [contractAddress, setContractAddress] = useState(params.get('contract') || '');
+  const [walletAddress, setWalletAddress] = useState(params.get('wallet') || '');
+  const [result, setResult] = useState(null);
+  const [metadata, setMetadata] = useState(null);
+  const [metaError, setMetaError] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  const query = params.toString();
 
-  // Contract ABI for verification functions
-  const contractABI = [
-    "function hasSoulboundCertificate(address) view returns (bool)",
-    "function ownerOf(uint256) view returns (address)",
-    "function getSoulboundCertificateDetails(address) view returns (bool exists, uint256 tokenId, string memory uri)",
-    "function tokenURI(uint256) view returns (string)",
-    "function name() view returns (string)",
-    "function symbol() view returns (string)",
-    "function totalSupply() view returns (uint256)",
-    "function balanceOf(address) view returns (uint256)"
-  ];
-
-  const verifyOwnership = async () => {
-    if (!contractAddress || !walletAddress) {
-      setError('Please enter both contract address and wallet address');
-      return;
-    }
-
-    if (!ethers.utils.isAddress(contractAddress) || !ethers.utils.isAddress(walletAddress)) {
-      setError('Please enter valid Ethereum addresses');
-      return;
-    }
-
-    setLoading(true);
+  useEffect(() => {
+    const values = new URLSearchParams(query);
+    const addr = values.get('contract') || '';
+    const wallet = values.get('wallet') || '';
+    setContractAddress(addr);
+    setWalletAddress(wallet);
+    setResult(null);
     setError('');
-    setVerificationResult(null);
-
-    try {
-      // Connect to Sepolia network via backend API
-      const response = await fetch('/api/network/provider', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          network: 'sepolia'
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get network provider');
-      }
-
-      const providerData = await response.json();
-      const provider = new ethers.providers.JsonRpcProvider(providerData.rpcUrl);
-
-      // Create contract instance
-      const contract = new ethers.Contract(contractAddress, contractABI, provider);
-
-      // Get contract information
-      const [contractName, contractSymbol, totalSupply] = await Promise.all([
-        contract.name(),
-        contract.symbol(), 
-        contract.totalSupply()
-      ]);
-
-      // Verify ownership
-      const hasCertificate = await contract.hasSoulboundCertificate(walletAddress);
-      const balance = await contract.balanceOf(walletAddress);
-
-      let ownershipDetails = null;
-      let metadata = null;
-
-      if (hasCertificate) {
-        // Get certificate details
-        const [exists, certTokenId, uri] = await contract.getSoulboundCertificateDetails(walletAddress);
-        
-        // Verify token ownership
-        const tokenOwner = await contract.ownerOf(certTokenId);
-        
-        ownershipDetails = {
-          exists,
-          tokenId: certTokenId.toString(),
-          uri,
-          owner: tokenOwner,
-          isCorrectOwner: tokenOwner.toLowerCase() === walletAddress.toLowerCase()
-        };
-
-        // Fetch metadata from IPFS
-        if (uri.startsWith('ipfs://')) {
-          try {
-            const ipfsHash = uri.replace('ipfs://', '');
-            const response = await fetch(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
-            metadata = await response.json();
-          } catch (metadataError) {
-            console.error('Error fetching metadata:', metadataError);
-          }
-        }
-      }
-
-      setVerificationResult({
-        contractInfo: {
-          name: contractName,
-          symbol: contractSymbol,
-          totalSupply: totalSupply.toString(),
-          address: contractAddress
-        },
-        walletInfo: {
-          address: walletAddress,
-          hasCertificate: hasCertificate && ownershipDetails?.exists && ownershipDetails?.isCorrectOwner,
-          balance: balance.toString()
-        },
-        ownershipDetails,
-        metadata,
-        verifiedAt: new Date().toISOString()
-      });
-
-    } catch (error) {
-      console.error('Verification error:', error);
-      setError(`Verification failed: ${error.message}`);
-    } finally {
-      setLoading(false);
+    setCopied(false);
+    if (!addr && !wallet) return;
+    if (!validAddress(addr) || !validAddress(wallet)) {
+      setError('Enter valid contract and wallet addresses.');
+      return;
     }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    let active = true;
+    setBusy(true);
+    apiJson(`/api/certificates/${addr}/${wallet}`, { signal: ctrl.signal }).then(data => {
+      if (values.has('chain') && Number(values.get('chain')) !== data.chainId) throw new Error('This link is for a different network than this server.');
+      if (active) setResult(data);
+    }).catch(err => {
+      if (active) setError(err.name === 'AbortError' ? 'Verification timed out. Try again.' : err.message);
+    }).finally(() => { if (active) setBusy(false); });
+    return () => { active = false; clearTimeout(timer); ctrl.abort(); };
+  }, [query, refresh]);
+
+  useEffect(() => {
+    setMetadata(null);
+    setMetaError('');
+    if (!result?.verified || !result.metadataUri) return;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    let active = true;
+    readMetadata(result.metadataUri, ctrl.signal).then(data => {
+      if (active) setMetadata(data);
+    }).catch(() => {
+      if (active) setMetaError('Metadata preview is unavailable. You can still check the ownership record.');
+    });
+    return () => { active = false; clearTimeout(timer); ctrl.abort(); };
+  }, [result]);
+
+  const submit = e => {
+    e.preventDefault();
+    setError('');
+    if (!validAddress(contractAddress) || !validAddress(walletAddress)) return setError('Enter valid contract and wallet addresses.');
+    setParams({ contract: contractAddress, wallet: walletAddress });
+    setRefresh(value => value + 1);
   };
 
-  const copyVerificationLink = () => {
-    const verificationUrl = `${window.location.origin}/verify?contract=${contractAddress}&wallet=${walletAddress}`;
-    navigator.clipboard.writeText(verificationUrl);
-    alert('Verification link copied to clipboard!');
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.origin + verificationUrl(result.contractAddress, result.wallet, result.chainId));
+      setCopied(true);
+    } catch {
+      setError('Clipboard access was denied. Copy the address from your browser instead.');
+    }
   };
 
   return (
-    <motion.div
-      className="certificate-verifier"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
-      {/* Header Section */}
-      <motion.div 
-        className="portal-header premium-portal-header"
-        variants={itemVariants}
-      >
-        <motion.div
-          className="header-content"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <motion.div
-            className="header-icon-container"
-            whileHover={{ rotate: 360 }}
-            transition={{ duration: 0.6 }}
-          >
-            <Search size={48} className="header-icon" />
-          </motion.div>
-          <h1 className="portal-title brand-font">Certificate Verification</h1>
-          <p className="portal-subtitle body-font">
-            Public verification tool to check certificate authenticity and ownership on the blockchain
-          </p>
-        </motion.div>
-      </motion.div>
-
-      {/* Main Content */}
-      <motion.div 
-        className="row mt-2"
-        variants={itemVariants}
-      >
-        <motion.div 
-          className="col-lg-8 mx-auto"
-          variants={cardVariants}
-        >
-          <motion.div 
-            className="card premium-portal-card"
-            whileHover={{ y: -5 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="card-header premium-card-header">
-              <h3 className="card-title premium-card-title body-font">
-                <Shield className="me-2" />
-                Public Certificate Verification
-              </h3>
-            </div>
-            <div className="card-body">
-              <div className="alert alert-info premium-alert">
-                <h6>🌐 Public Verification Tool</h6>
-                <p className="mb-0">
-                  Anyone can use this tool to verify certificate ownership. No wallet connection required - 
-                  just enter the contract address and wallet address to verify.
-                </p>
-              </div>
-
-              <form onSubmit={(e) => { e.preventDefault(); verifyOwnership(); }}>
-                <div className="mb-3">
-                  <label htmlFor="contractAddress" className="form-label premium-form-label body-font">Certificate Contract Address</label>
-                  <input
-                    type="text"
-                    className="form-control premium-form-control"
-                    id="contractAddress"
-                    value={contractAddress}
-                    onChange={(e) => setContractAddress(e.target.value)}
-                    placeholder="0x..."
-                    required
-                  />
-                  <div className="form-text">Enter the soulbound certificate contract address</div>
-                </div>
-
-                <div className="mb-3">
-                  <label htmlFor="walletAddress" className="form-label premium-form-label body-font">Wallet Address to Verify</label>
-                  <input
-                    type="text"
-                    className="form-control premium-form-control"
-                    id="walletAddress"
-                    value={walletAddress}
-                    onChange={(e) => setWalletAddress(e.target.value)}
-                    placeholder="0x..."
-                    required
-                  />
-                  <div className="form-text">Enter the wallet address you want to verify certificate ownership for</div>
-                </div>
-
-                <motion.button
-                  type="submit"
-                  className="btn btn-primary premium-btn"
-                  disabled={loading}
-                  variants={buttonVariants}
-                  whileHover="hover"
-                  whileTap="tap"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="me-2 loading-spinner" />
-                      Verifying...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="me-2" />
-                      Verify Certificate Ownership
-                    </>
-                  )}
-                </motion.button>
-              </form>
-
-              <AnimatePresence>
-                {error && (
-                  <motion.div
-                    className="alert alert-danger premium-alert mt-3"
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <AlertCircle className="me-2" />
-                    <h6>❌ Verification Error</h6>
-                    <p className="mb-0">{error}</p>
-                  </motion.div>
-                )}
-
-                {verificationResult && (
-                  <motion.div
-                    className="mt-4"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6 }}
-                  >
-                    <div className={`alert ${verificationResult.walletInfo.hasCertificate ? 'alert-success' : 'alert-warning'} premium-alert`}>
-                      <h5>
-                        {verificationResult.walletInfo.hasCertificate ? '✅ Certificate Verified!' : '❌ No Certificate Found'}
-                      </h5>
-                      <p className="mb-0">
-                        {verificationResult.walletInfo.hasCertificate 
-                          ? 'The certificate exists and belongs to the specified wallet address.'
-                          : 'No certificate was found for the specified wallet address in this contract.'
-                        }
-                      </p>
-                    </div>
-                    
-                    {verificationResult.walletInfo.hasCertificate && verificationResult.metadata && (
-                      <div className="mt-3">
-                        <h6 style={{ color: '#ffffff', fontWeight: 'bold' }}>Certificate Details:</h6>
-                        <div className="row">
-                          <div className="col-md-6">
-                            <p style={{ color: '#ffffff' }}><strong>Name:</strong> {verificationResult.metadata.name || 'Not specified'}</p>
-                            <p style={{ color: '#ffffff' }}><strong>Description:</strong> {verificationResult.metadata.description || 'Not specified'}</p>
-                            {verificationResult.metadata.attributes && verificationResult.metadata.attributes.length > 0 && (
-                              <div>
-                                <strong style={{ color: '#ffffff' }}>Attributes:</strong>
-                                <ul className="mb-0" style={{ color: '#ffffff' }}>
-                                  {verificationResult.metadata.attributes.map((attr, index) => (
-                                    <li key={index} style={{ color: '#ffffff' }}>{attr.trait_type}: {attr.value}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                          <div className="col-md-6">
-                            {verificationResult.metadata.image && (
-                              <div>
-                                <p style={{ color: '#ffffff' }}><strong>Certificate Preview:</strong></p>
-                                <img 
-                                  src={verificationResult.metadata.image} 
-                                  alt="Certificate Preview" 
-                                  className="img-fluid rounded border"
-                                  style={{ maxHeight: '200px', maxWidth: '100%' }}
-                                  onError={(e) => {
-                                    e.target.style.display = 'none';
-                                    e.target.nextSibling.style.display = 'block';
-                                  }}
-                                />
-                                <div style={{ display: 'none' }} className="text-muted">
-                                  <small style={{ color: '#ffffff' }}>Image preview not available. <a href={verificationResult.metadata.image} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa' }}>View original</a></small>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        </motion.div>
-      </motion.div>
-    </motion.div>
+    <section className="certificate-verifier">
+      <div className="portal-header"><h1>Verify a certificate</h1><p>Check a wallet against an event contract. No wallet connection needed.</p></div>
+      <div className="card premium-portal-card"><div className="card-body text-light">
+        <form onSubmit={submit}>
+          <fieldset disabled={busy}>
+            <div className="mb-3"><label htmlFor="verifyContract" className="form-label">Contract address</label><input id="verifyContract" className="form-control" value={contractAddress} onChange={e => { setContractAddress(e.target.value.trim()); setResult(null); }} placeholder="0x..." required /></div>
+            <div className="mb-3"><label htmlFor="verifyWallet" className="form-label">Wallet address</label><input id="verifyWallet" className="form-control" value={walletAddress} onChange={e => { setWalletAddress(e.target.value.trim()); setResult(null); }} placeholder="0x..." required /></div>
+            <button className="btn btn-primary" type="submit">{busy ? 'Checking the chain...' : 'Verify certificate'}</button>
+          </fieldset>
+        </form>
+        {error && <p className="alert alert-danger mt-3" role="alert">{error}</p>}
+      </div></div>
+      {result && <div className="card premium-portal-card mt-4"><div className="card-body text-light">
+        <p className={`alert ${result.verified ? 'alert-success' : 'alert-warning'}`} role="status">{result.verified ? 'Ownership confirmed' : result.hasClaimed ? 'Ownership mismatch. This record could not be verified.' : 'No certificate found for this wallet.'}</p>
+        <h2>{result.name}</h2>
+        <dl className="record-details">
+          <dt>Network</dt><dd>{result.chainId === 31337 ? 'Local Hardhat' : 'Sepolia'} ({result.chainId})</dd>
+          <dt>Issuer wallet</dt><dd>{result.issuer}</dd>
+          <dt>Recipient wallet</dt><dd>{result.wallet}</dd>
+          <dt>Contract</dt><dd>{result.contractAddress}</dd>
+          {result.tokenId && <><dt>Token ID</dt><dd>{result.tokenId}</dd></>}
+        </dl>
+        <p>Confirm the contract and issuer address with the event organizer before relying on this record.</p>
+        {result.legacy && <p className="alert alert-warning">This is an older contract. Claimants could choose their own metadata, so the preview is not an issuer-bound record.</p>}
+        {metadata && <div className="certificate-preview">
+          {metadata.image && <img src={metadata.image} alt={metadata.name || 'Event certificate'} style={{ maxWidth: '100%' }} onError={e => { e.currentTarget.hidden = true; setMetaError('The image preview could not be loaded.'); }} />}
+          <h3>{metadata.name}</h3><p>{metadata.description}</p>
+          {metadata.attributes.length > 0 && <dl>{metadata.attributes.map((attr, idx) => <div key={idx}><dt>{attr.name}</dt><dd>{attr.value}</dd></div>)}</dl>}
+        </div>}
+        {metaError && <p role="status">{metaError}</p>}
+        {result.metadataUri && publicUrl(result.metadataUri) && <p><a href={publicUrl(result.metadataUri)} target="_blank" rel="noreferrer">View metadata</a></p>}
+        <button className="btn btn-secondary" onClick={copyLink}>{copied ? 'Link copied' : 'Copy verification link'}</button>
+      </div></div>}
+    </section>
   );
-};
+}
 
 export default CertificateVerifier;
