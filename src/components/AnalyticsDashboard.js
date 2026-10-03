@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getContractAnalytics, getRealTimeStats, exportAnalyticsToCSV } from '../utils/analyticsUtils';
 
 const AnalyticsDashboard = ({ contractAddress, provider }) => {
@@ -6,11 +6,10 @@ const AnalyticsDashboard = ({ contractAddress, provider }) => {
   const [realTimeStats, setRealTimeStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [refreshInterval, setRefreshInterval] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   // Fetch analytics data
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     if (!contractAddress || !provider) return;
     
     setLoading(true);
@@ -37,24 +36,14 @@ const AnalyticsDashboard = ({ contractAddress, provider }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [contractAddress, provider]);
 
-  // Auto-refresh functionality
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(fetchAnalytics, 30000); // Refresh every 30 seconds
-      setRefreshInterval(interval);
-      return () => clearInterval(interval);
-    } else if (refreshInterval) {
-      clearInterval(refreshInterval);
-      setRefreshInterval(null);
-    }
-  }, [autoRefresh, contractAddress]);
-
-  // Initial load
   useEffect(() => {
     fetchAnalytics();
-  }, [contractAddress, provider]);
+    if (!autoRefresh) return;
+    const interval = setInterval(fetchAnalytics, 30000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, fetchAnalytics]);
 
   // Export data to CSV
   const handleExportCSV = () => {

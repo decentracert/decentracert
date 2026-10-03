@@ -226,7 +226,7 @@ function createApp(options = {}) {
 
 if (require.main === module) {
   const port = Number(process.env.PORT || 3001);
-  createApp().listen(port, process.env.HOST || '0.0.0.0', () => console.log('DecentraCert listening on port ' + port));
+  createApp().listen(port, process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1'), () => console.log('DecentraCert listening on port ' + port));
 }
 
 module.exports = { createApp };

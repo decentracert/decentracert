@@ -35,7 +35,6 @@ export const getContractAnalytics = async (contractAddress, provider) => {
 
     // Get all certificate issuance events
     const certificateEvents = await contract.queryFilter("SoulboundCertificateIssued", 0, "latest");
-    const transferEvents = await contract.queryFilter("Transfer", 0, "latest");
 
     // Process events for analytics
     const claimants = [];
@@ -276,7 +275,7 @@ export const checkAddressClaimed = async (contractAddress, address, provider) =>
     const hasCertificate = await contract.hasSoulboundCertificate(address);
     
     if (hasCertificate) {
-      const [exists, tokenId, uri] = await contract.getSoulboundCertificateDetails(address);
+      const [, tokenId, uri] = await contract.getSoulboundCertificateDetails(address);
       return {
         hasCertificate: true,
         tokenId: tokenId.toString(),

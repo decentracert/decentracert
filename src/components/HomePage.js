@@ -5,15 +5,12 @@ import {
   Shield, 
   GraduationCap, 
   Building2, 
-  CheckCircle, 
   Globe, 
-  RefreshCw, 
   Sparkles, 
   ArrowRight, 
   Wallet,
   Eye,
   Share2,
-  Award
 } from 'lucide-react';
 
 const HomePage = ({ account, connectWallet }) => {

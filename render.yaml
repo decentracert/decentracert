@@ -5,12 +5,13 @@ services:
     plan: free
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PINATA_JWT
         sync: false
-      - key: ETHERSCAN_API_KEY
+      - key: UPLOAD_KEY
         sync: false
       - key: SEPOLIA_API_URL
         sync: false
