@@ -145,7 +145,7 @@ function OrganizerPortal({ account, provider, signer, connectWallet, cfg }) {
       </div></div>}
       {created && <div className="card premium-portal-card mt-4"><div className="card-body text-light">
         <h2>Event published</h2><p style={{ overflowWrap: 'anywhere' }}>{created.contractAddress}</p>
-        <p>Save this claim file before starting another event. Use its contract address, metadata URI and wallet proof on the claim page.</p>
+        <p>Save this claim file before starting another event. Participants can import it on the claim page.</p>
         <div className="d-flex flex-wrap gap-2">
           <button className="btn btn-primary" onClick={() => downloadJson('claimFile.json', created)}>Download claim file</button>
           <Link className="btn btn-secondary" to="/student">Open claim page</Link>

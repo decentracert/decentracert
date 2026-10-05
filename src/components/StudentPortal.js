@@ -3,11 +3,15 @@ import { Link } from 'react-router-dom';
 import { ethers } from 'ethers';
 import { claimCertificate, getEventDetails, hasAddressClaimed, isAddressEligible } from '../utils/contractUtils';
 import { parseProof, verifyMerkleProof } from '../utils/merkleUtils';
+import { checkClaimFile, maxClaimFileSize, parseClaimFile } from '../utils/claimFileUtils';
+import { verificationUrl } from '../utils/apiUtils';
+import { saveContract } from '../utils/storageUtils';
 
-function StudentPortal({ account, provider, signer, connectWallet }) {
+function StudentPortal({ account, provider, signer, connectWallet, cfg }) {
   const [contractAddress, setContractAddress] = useState('');
   const [proofText, setProofText] = useState('');
-  const [tokenUri, setTokenUri] = useState('');
+  const [claimData, setClaimData] = useState(null);
+  const [fileName, setFileName] = useState('');
   const [details, setDetails] = useState(null);
   const [claimed, setClaimed] = useState(false);
   const [txHash, setTxHash] = useState('');
@@ -23,7 +27,30 @@ function StudentPortal({ account, provider, signer, connectWallet }) {
     setError('');
     setBusy(false);
     return () => { requestId.current += 1; };
-  }, [account, provider, contractAddress, proofText, tokenUri]);
+  }, [account, provider, contractAddress, proofText, claimData]);
+
+  const importFile = async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const id = ++requestId.current;
+    setDetails(null);
+    setError('');
+    setBusy(true);
+    try {
+      if (file.size > maxClaimFileSize) throw new Error('Use a claim file under 8 MB.');
+      const data = parseClaimFile(await file.text());
+      if (id !== requestId.current) return;
+      setClaimData(data);
+      setContractAddress(data.contractAddress);
+      setProofText('');
+      setFileName(file.name);
+    } catch (err) {
+      if (id === requestId.current) setError(err.message);
+    } finally {
+      if (id === requestId.current) setBusy(false);
+    }
+  };
 
   const checkEligibility = async e => {
     e.preventDefault();
@@ -36,18 +63,20 @@ function StudentPortal({ account, provider, signer, connectWallet }) {
     const id = ++requestId.current;
     setBusy(true);
     try {
-      const proof = parseProof(proofText);
+      const network = await provider.getNetwork();
+      if (!cfg || network.chainId !== cfg.chainId) throw new Error('Connect your wallet to the server network first.');
+      if (claimData && claimData.chainId !== network.chainId) throw new Error('The claim file is for a different network.');
       const [event, alreadyClaimed] = await Promise.all([
         getEventDetails(contractAddress, provider),
         hasAddressClaimed(contractAddress, account, provider)
       ]);
-      if (event.metadataUri !== tokenUri) throw new Error('The metadata URI does not match the issuer record.');
+      const proof = claimData ? checkClaimFile(claimData, account, contractAddress, network.chainId, event) : parseProof(proofText);
       if (!verifyMerkleProof(account, proof, event.merkleRoot)) throw new Error('This proof does not match your wallet and contract.');
       if (!alreadyClaimed && !await isAddressEligible(contractAddress, account, proof, provider)) {
         throw new Error('This wallet is not eligible for the event.');
       }
       if (id === requestId.current) {
-        setDetails(event);
+        setDetails({ ...event, proof, chainId: network.chainId });
         setClaimed(alreadyClaimed);
       }
     } catch (err) {
@@ -59,17 +88,17 @@ function StudentPortal({ account, provider, signer, connectWallet }) {
 
   const claim = async () => {
     if (!signer) return setError('Connect your wallet to the supported network first.');
-    if (!/^(ipfs:\/\/|https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:|\/))/.test(tokenUri)) {
-      return setError('Enter the metadata URI supplied by the organizer.');
-    }
+    if (!details) return;
     const id = ++requestId.current;
     setBusy(true);
     setError('');
     try {
-      const receipt = await claimCertificate(contractAddress, parseProof(proofText), tokenUri, signer);
+      if ((await signer.getAddress()).toLowerCase() !== account.toLowerCase() || (await signer.provider.getNetwork()).chainId !== details.chainId) throw new Error('The wallet changed. Check eligibility again.');
+      const receipt = await claimCertificate(contractAddress, details.proof, details.metadataUri, signer);
       if (id === requestId.current) {
         setTxHash(receipt.transactionHash);
         setClaimed(true);
+        saveContract(contractAddress, details.chainId, details.eventName);
       }
     } catch (err) {
       if (id === requestId.current) setError(err.code === 4001 || err.code === 'ACTION_REJECTED' ? 'Transaction cancelled in your wallet.' : err.reason || err.message || 'Could not claim the certificate.');
@@ -80,21 +109,25 @@ function StudentPortal({ account, provider, signer, connectWallet }) {
 
   return (
     <section className="student-portal">
-      <div className="portal-header"><h1>Claim a certificate</h1><p>Use the contract address, proof and metadata URI from your event organizer.</p></div>
+      <div className="portal-header"><h1>Claim a certificate</h1><p>Import the claim file from your organizer. Your wallet selects its own proof.</p></div>
       {!account ? <button className="btn btn-primary" onClick={connectWallet}>Connect wallet</button> : (
         <div className="card premium-portal-card"><div className="card-body text-light">
           <form onSubmit={checkEligibility}>
             <fieldset disabled={busy}>
-              <div className="mb-3"><label className="form-label" htmlFor="claimContract">Contract address</label><input id="claimContract" className="form-control" value={contractAddress} onChange={e => setContractAddress(e.target.value.trim())} placeholder="0x..." required /></div>
-              <div className="mb-3"><label className="form-label" htmlFor="claimProof">Merkle proof</label><textarea id="claimProof" className="form-control" rows={4} value={proofText} onChange={e => setProofText(e.target.value)} placeholder="[]" required /><p className="form-text">Paste the JSON array for your wallet. A single participant has an empty proof, [].</p></div>
-              <div className="mb-3"><label className="form-label" htmlFor="claimUri">Metadata URI</label><input id="claimUri" className="form-control" value={tokenUri} onChange={e => setTokenUri(e.target.value.trim())} placeholder="ipfs://..." required /></div>
+              <div className="mb-3"><label className="form-label" htmlFor="claimFile">Claim file</label><input id="claimFile" className="form-control" type="file" accept=".json,application/json" onChange={importFile} /><p className="form-text">JSON, up to 8 MB. The file stays in your browser.</p></div>
+              {claimData && <div className="mb-3"><p>{fileName}: {claimData.eventName}</p><button className="btn btn-secondary" type="button" onClick={() => { setClaimData(null); setFileName(''); }}>Use a manual proof</button></div>}
+              <div className="mb-3"><label className="form-label" htmlFor="claimContract">Contract address</label><input id="claimContract" className="form-control" value={contractAddress} readOnly={Boolean(claimData)} onChange={e => setContractAddress(e.target.value.trim())} placeholder="0x..." maxLength={42} required /></div>
+              {!claimData && <div className="mb-3"><label className="form-label" htmlFor="claimProof">Merkle proof</label><textarea id="claimProof" className="form-control" rows={4} value={proofText} onChange={e => setProofText(e.target.value)} placeholder="[]" maxLength={2300} required /><p className="form-text">Or paste the JSON array for your wallet. A single participant has an empty proof, [].</p></div>}
               <button className="btn btn-primary" type="submit">{busy ? 'Checking...' : 'Check eligibility'}</button>
             </fieldset>
           </form>
           {error && <p className="alert alert-danger mt-3" role="alert">{error}</p>}
           {details && <div className="mt-4" aria-live="polite">
             <h2>{details.eventName}</h2>
-            {claimed ? <><p className="alert alert-success">{txHash ? 'Certificate claimed.' : 'This wallet has already claimed its certificate.'}</p>{txHash && <p style={{ overflowWrap: 'anywhere' }}>Transaction: {txHash}</p>}<Link to={`/verify?contract=${contractAddress}&wallet=${account}`}>Verify certificate</Link></> : <><p>Your wallet is eligible. Claiming costs test ETH and permanently binds the certificate to this address.</p><button className="btn btn-primary" disabled={busy || !signer} onClick={claim}>{busy ? 'Waiting for confirmation...' : 'Claim certificate'}</button></>}
+            <p style={{ overflowWrap: 'anywhere' }}>Issuer: {details.owner}</p>
+            <p style={{ overflowWrap: 'anywhere' }}>Metadata: {details.metadataUri}</p>
+            <p>Check that you know the issuer before claiming.</p>
+            {claimed ? <><p className="alert alert-success">{txHash ? 'Certificate claimed.' : 'This wallet has already claimed its certificate.'}</p>{txHash && <p style={{ overflowWrap: 'anywhere' }}>Transaction: {txHash}</p>}<Link to={verificationUrl(contractAddress, account, details.chainId)}>Verify certificate</Link></> : <><p>Your wallet is eligible. Claiming costs test ETH and permanently binds the certificate to this address.</p><button className="btn btn-primary" disabled={busy || !signer} onClick={claim}>{busy ? 'Waiting for confirmation...' : 'Claim certificate'}</button></>}
           </div>}
         </div></div>
       )}
