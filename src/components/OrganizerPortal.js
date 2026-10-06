@@ -152,7 +152,7 @@ function OrganizerPortal({ account, provider, signer, connectWallet, cfg }) {
           <button className="btn btn-secondary" onClick={() => setShowClaims(value => !value)}>View claims</button>
           <button className="btn btn-secondary" onClick={() => { setCreated(null); setStatus(''); setShowClaims(false); }}>Start another event</button>
         </div>
-        {showClaims && <AnalyticsDashboard contractAddress={created.contractAddress} provider={provider} />}
+        {showClaims && <AnalyticsDashboard contractAddress={created.contractAddress} provider={provider} chainId={created.chainId} />}
       </div></div>}
     </section>
   );
