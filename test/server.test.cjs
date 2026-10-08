@@ -219,3 +219,14 @@ test('keeps missing API routes and assets out of the SPA fallback', async () => 
   assert.equal((await fetch(base + '/missing.js')).status, 404);
   assert.equal((await fetch(base + '/student')).status, 200);
 });
+
+test('serves only the known demo files on the local chain', async () => {
+  await fs.promises.writeFile(path.join(buildDir, 'claimFile.json'), '{"version":1}');
+  const local = await listen(createApp({ buildDir, chainId: 31337, demoDir: buildDir }));
+  assert.equal((await fetch(local + '/demo/claimFile.json')).status, 200);
+  assert.equal((await fetch(local + '/demo/index.html')).status, 404);
+  assert.equal((await fetch(local + '/demo/%2e%2e%2fserver.js')).status, 404);
+  const publicApp = await listen(createApp({ buildDir, chainId: 11155111, demoDir: buildDir }));
+  assert.equal((await fetch(publicApp + '/demo/claimFile.json')).status, 404);
+  assert.equal((await fetch(base + '/demo/claimFile.json')).status, 404);
+});

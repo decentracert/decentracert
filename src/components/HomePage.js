@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { verificationUrl } from '../utils/apiUtils';
 import { motion } from 'framer-motion';
 import { 
   Shield, 
@@ -13,7 +14,7 @@ import {
   Share2,
 } from 'lucide-react';
 
-const HomePage = ({ account, connectWallet }) => {
+const HomePage = ({ account, connectWallet, cfg }) => {
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -94,6 +95,10 @@ const HomePage = ({ account, connectWallet }) => {
       animate="visible"
       className="homepage-container"
     >
+      {cfg?.demo && <aside className="alert alert-info" aria-label="Local demo">
+        <h2>Local demo</h2><p>One sample certificate is already claimed. The claim file includes the other eligible wallets for this run.</p>
+        <div className="d-flex gap-3 flex-wrap"><Link to={verificationUrl(cfg.demo.contractAddress, cfg.demo.wallet, 31337)}>Open demo record</Link><a href="/demo/claimFile.json" download>Download demo claim file</a></div>
+      </aside>}
       {/* Hero Section */}
       <motion.div 
         className="hero-section premium-hero"
@@ -302,4 +307,4 @@ const HomePage = ({ account, connectWallet }) => {
   );
 };
 
-export default HomePage; 
+export default HomePage;

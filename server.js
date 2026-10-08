@@ -144,7 +144,8 @@ function createApp(options = {}) {
   app.get('/api/config', (req, res) => res.json({
     chainId: cfg.chainId,
     networkName: cfg.chainId === 31337 ? 'Local Hardhat' : 'Sepolia',
-    uploadsEnabled
+    uploadsEnabled,
+    ...(cfg.chainId === 31337 && cfg.demoDir && cfg.demo ? { demo: cfg.demo } : {})
   }));
 
   app.post('/api/upload-ipfs', upload.single('file'), wrap(async (req, res) => {
@@ -203,6 +204,10 @@ function createApp(options = {}) {
   }));
 
   app.use('/api', (req, res, next) => next(fail(404, 'API route not found.')));
+  app.get('/demo/:file', (req, res, next) => {
+    if (cfg.chainId !== 31337 || !cfg.demoDir || !['metadata.json', 'certificate.svg', 'claimFile.json'].includes(req.params.file)) return next(fail(404, 'Demo file not found.'));
+    res.sendFile(path.join(cfg.demoDir, req.params.file), err => { if (err) next(fail(404, 'Demo file not found.')); });
+  });
   app.use(express.static(cfg.buildDir));
   app.get('*', (req, res, next) => {
     if (path.extname(req.path) || !req.accepts('html')) return next();

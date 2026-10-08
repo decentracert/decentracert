@@ -133,7 +133,7 @@ function App() {
         transition={{ duration: 0.6, delay: 0.2 }}
       >
         <Routes>
-          <Route path="/" element={<HomePage account={account} connectWallet={connectWallet} />} />
+          <Route path="/" element={<HomePage account={account} connectWallet={connectWallet} cfg={cfg} />} />
           <Route
             path="/student"
             element={

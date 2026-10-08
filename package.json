@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "demo": "npm run build && node scripts/localDemo.cjs",
     "dev": "npm run compile && concurrently -k -n \"SERVER,CLIENT\" -c \"green,blue\" \"npm run server\" \"craco start\"",
     "server": "node server.js",
     "build": "hardhat compile && craco build",
