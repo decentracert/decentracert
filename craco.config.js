@@ -1,5 +1,7 @@
 const webpack = require('webpack');
 process.env.HOST ||= '127.0.0.1';
+// keep cra off the api port from .env
+process.env.PORT = '3000';
 
 module.exports = {
   webpack: {

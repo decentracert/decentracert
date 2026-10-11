@@ -37,10 +37,6 @@ export const generateMerkleTree = addresses => new MerkleTree(
   normalizeAddresses(addresses).map(leafFor), keccak256, { sortPairs: true }
 );
 
-export const generateMerkleRoot = addresses => generateMerkleTree(addresses).getHexRoot();
-
-export const generateMerkleProof = (addresses, addr) => generateMerkleTree(addresses).getHexProof(leafFor(addr));
-
 export const verifyMerkleProof = (addr, proof, root) => {
   if (!ethers.utils.isAddress(addr) || !/^0x[0-9a-f]{64}$/i.test(root)) return false;
   return MerkleTree.verify(parseProof(proof), leafFor(addr), root, keccak256, { sortPairs: true });
@@ -51,9 +47,4 @@ export const generateAllMerkleProofs = addresses => {
   const tree = generateMerkleTree(list);
   const proofs = Object.fromEntries(list.map(addr => [addr.toLowerCase(), tree.getHexProof(leafFor(addr))]));
   return { merkleRoot: tree.getHexRoot(), proofs, addresses: list };
-};
-
-export const isAddressInMerkleTree = (addr, proofs, root) => {
-  const proof = proofs[addr.toLowerCase()];
-  return Boolean(proof && verifyMerkleProof(addr, proof, root));
 };

@@ -8,8 +8,6 @@ export const getCertificateContract = (addr, provider) => {
   return new ethers.Contract(addr, certificate.abi, provider);
 };
 
-export const getCertificateContractReadOnly = getCertificateContract;
-
 export const getEventDetails = async (addr, provider) => {
   const contract = getCertificateContract(addr, provider);
   if (await provider.getCode(addr) === '0x') throw new Error('No contract found at this address on the connected network.');

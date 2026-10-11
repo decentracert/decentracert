@@ -33,28 +33,28 @@ function AnalyticsDashboard({ contractAddress, provider, chainId }) {
     return () => { requestId.current += 1; };
   }, [load]);
 
-  return <section className="claim-history mt-4" aria-label="Event claims">
-    <div className="d-flex flex-wrap justify-content-between gap-2 mb-3">
+  return <section className="claimHistory" aria-label="Event claims">
+    <div className="actions actionsBetween spaceBottom">
       <h3>Event claims</h3>
-      <div className="d-flex gap-2">
-        <button className="btn btn-secondary" disabled={busy} onClick={() => load()}>Refresh claims</button>
-        <button className="btn btn-secondary" disabled={busy || !data?.claims.length} onClick={() => downloadFile('eventClaims.csv', new Blob([claimsCsv(data.name, contractAddress, data.claims)], { type: 'text/csv;charset=utf-8' }))}>Export loaded claims</button>
+      <div className="actions">
+        <button className="btn btnSecondary" disabled={busy} onClick={() => load()}>Refresh claims</button>
+        <button className="btn btnSecondary" disabled={busy || !data?.claims.length} onClick={() => downloadFile('eventClaims.csv', new Blob([claimsCsv(data.name, contractAddress, data.claims)], { type: 'text/csv;charset=utf-8' }))}>Export loaded claims</button>
       </div>
     </div>
     {busy && <p role="status">Reading claim history...</p>}
-    {error && <p className="alert alert-danger" role="alert">{error}</p>}
+    {error && <p className="notice noticeError" role="alert">{error}</p>}
     {data && <>
       <p><strong>{data.total}</strong> certificates claimed. {data.claims.length} claims loaded from blocks {data.fromBlock} to {data.toBlock}.</p>
-      <p className="form-text">Reads up to 2000 blocks at a time. The CSV includes only the loaded claims.</p>
-      {data.claims.length ? <div className="table-responsive"><table className="table claim-table">
-        <caption className="visually-hidden">Loaded claims for {data.name}</caption>
+      <p className="fieldHint">Reads up to 2000 blocks at a time. The CSV includes only the loaded claims.</p>
+      {data.claims.length ? <div className="tableWrap"><table className="claimTable">
+        <caption className="visuallyHidden">Loaded claims for {data.name}</caption>
         <thead><tr><th scope="col">Token</th><th scope="col">Wallet</th><th scope="col">Block</th><th scope="col">Record</th></tr></thead>
         <tbody>{data.claims.map(claim => <tr key={claim.txHash + claim.tokenId}>
-          <td>{claim.tokenId}</td><td className="wallet-cell">{claim.wallet}</td><td>{claim.block}</td>
+          <td>{claim.tokenId}</td><td className="walletCell">{claim.wallet}</td><td>{claim.block}</td>
           <td><Link to={verificationUrl(contractAddress, claim.wallet, chainId)}>Verify token {claim.tokenId}</Link></td>
         </tr>)}</tbody>
       </table></div> : <p>No claims in these blocks.</p>}
-      {data.nextBlock !== null && <button className="btn btn-secondary" disabled={busy} onClick={() => load(data.nextBlock)}>Load older blocks</button>}
+      {data.nextBlock !== null && <button className="btn btnSecondary" disabled={busy} onClick={() => load(data.nextBlock)}>Load older blocks</button>}
     </>}
   </section>;
 }

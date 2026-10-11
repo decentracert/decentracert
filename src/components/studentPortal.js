@@ -46,7 +46,7 @@ function StudentPortal({ account, provider, signer, connectWallet, cfg }) {
       setProofText('');
       setFileName(file.name);
     } catch (err) {
-      if (id === requestId.current) setError(err.message);
+      if (id === requestId.current) setError(err.message + (claimData ? ' The previous file is still loaded.' : ''));
     } finally {
       if (id === requestId.current) setBusy(false);
     }
@@ -108,26 +108,26 @@ function StudentPortal({ account, provider, signer, connectWallet, cfg }) {
   };
 
   return (
-    <section className="student-portal">
-      <div className="portal-header"><h1>Claim a certificate</h1><p>Import the claim file from your organizer. Your wallet selects its own proof.</p></div>
-      {!account ? <button className="btn btn-primary" onClick={connectWallet}>Connect wallet</button> : (
-        <div className="card premium-portal-card"><div className="card-body text-light">
+    <section className="formPanel">
+      <div className="pageHeader"><span className="eyebrow">Participants / {cfg?.networkName || 'Loading network'}</span><h1>Claim a certificate</h1><p>Import the claim file from your organizer. Your wallet selects its own proof.</p></div>
+      {!account ? <div className="connectPanel"><p>Connect the wallet your organizer added to the participant list.</p><button className="btn btnPrimary" onClick={connectWallet}>Connect wallet</button></div> : (
+        <div className="panel"><div className="panelBody">
+          <p className="fieldHint spaceBottom">Claiming as <span className="hash">{account}</span></p>
           <form onSubmit={checkEligibility}>
             <fieldset disabled={busy}>
-              <div className="mb-3"><label className="form-label" htmlFor="claimFile">Claim file</label><input id="claimFile" className="form-control" type="file" accept=".json,application/json" onChange={importFile} /><p className="form-text">JSON, up to 8 MB. The file stays in your browser.</p></div>
-              {claimData && <div className="mb-3"><p>{fileName}: {claimData.eventName}</p><button className="btn btn-secondary" type="button" onClick={() => { setClaimData(null); setFileName(''); }}>Use a manual proof</button></div>}
-              <div className="mb-3"><label className="form-label" htmlFor="claimContract">Contract address</label><input id="claimContract" className="form-control" value={contractAddress} readOnly={Boolean(claimData)} onChange={e => setContractAddress(e.target.value.trim())} placeholder="0x..." maxLength={42} required /></div>
-              {!claimData && <div className="mb-3"><label className="form-label" htmlFor="claimProof">Merkle proof</label><textarea id="claimProof" className="form-control" rows={4} value={proofText} onChange={e => setProofText(e.target.value)} placeholder="[]" maxLength={2300} required /><p className="form-text">Or paste the JSON array for your wallet. A single participant has an empty proof, [].</p></div>}
-              <button className="btn btn-primary" type="submit">{busy ? 'Checking...' : 'Check eligibility'}</button>
+              <div className="spaceBottom"><label className="fieldLabel" htmlFor="claimFile">Claim file</label><input id="claimFile" className="fieldInput" type="file" accept=".json,application/json" onChange={importFile} /><p className="fieldHint">JSON, up to 8 MB. The file stays in your browser.</p></div>
+              {claimData && <div className="loadedFile"><p>{fileName}: {claimData.eventName}</p><button className="btn btnSecondary" type="button" onClick={() => { setClaimData(null); setFileName(''); }}>Use a manual proof</button></div>}
+              <div className="field"><label className="fieldLabel" htmlFor="claimContract">Contract address</label><input id="claimContract" className="fieldInput hash" value={contractAddress} readOnly={Boolean(claimData)} onChange={e => setContractAddress(e.target.value.trim())} placeholder="0x..." maxLength={42} spellCheck={false} required /></div>
+              {!claimData && <div className="field"><label className="fieldLabel" htmlFor="claimProof">Merkle proof</label><textarea id="claimProof" className="fieldInput hash" rows={4} value={proofText} onChange={e => setProofText(e.target.value)} placeholder="[]" maxLength={2300} spellCheck={false} required /><p className="fieldHint">Or paste the JSON array for your wallet. A single participant has an empty proof, [].</p></div>}
+              <button className="btn btnPrimary" type="submit">{busy ? 'Checking...' : 'Check eligibility'}</button>
             </fieldset>
           </form>
-          {error && <p className="alert alert-danger mt-3" role="alert">{error}</p>}
-          {details && <div className="mt-4" aria-live="polite">
+          {error && <p className="notice noticeError" role="alert">{error}</p>}
+          {details && <div className="claimResult" aria-live="polite">
             <h2>{details.eventName}</h2>
-            <p style={{ overflowWrap: 'anywhere' }}>Issuer: {details.owner}</p>
-            <p style={{ overflowWrap: 'anywhere' }}>Metadata: {details.metadataUri}</p>
-            <p>Check that you know the issuer before claiming.</p>
-            {claimed ? <><p className="alert alert-success">{txHash ? 'Certificate claimed.' : 'This wallet has already claimed its certificate.'}</p>{txHash && <p style={{ overflowWrap: 'anywhere' }}>Transaction: {txHash}</p>}<Link to={verificationUrl(contractAddress, account, details.chainId)}>Verify certificate</Link></> : <><p>Your wallet is eligible. Claiming costs test ETH and permanently binds the certificate to this address.</p><button className="btn btn-primary" disabled={busy || !signer} onClick={claim}>{busy ? 'Waiting for confirmation...' : 'Claim certificate'}</button></>}
+            <dl className="recordDetails"><dt>Issuer wallet</dt><dd>{details.owner}</dd><dt>Metadata</dt><dd>{details.metadataUri}</dd></dl>
+            <p className="fieldHint spaceBottom">Check that you know the issuer before claiming.</p>
+            {claimed ? <><p className="notice noticeSuccess">{txHash ? 'Certificate claimed.' : 'This wallet has already claimed its certificate.'}</p>{txHash && <p className="hash">Transaction: {txHash}</p>}<Link to={verificationUrl(contractAddress, account, details.chainId)}>Verify certificate</Link></> : <><p>Your wallet is eligible. Claiming costs test ETH and permanently binds the certificate to this address.</p><button className="btn btnPrimary" disabled={busy || !signer} onClick={claim}>{busy ? 'Waiting for confirmation...' : 'Claim certificate'}</button></>}
           </div>}
         </div></div>
       )}

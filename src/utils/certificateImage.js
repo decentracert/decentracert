@@ -16,13 +16,13 @@ export async function drawCertificate(event, framed = true) {
   } else {
     ctx.fillRect(0, 0, 36, canvas.height);
   }
-  ctx.font = '24px monospace';
+  ctx.font = '24px "IBM Plex Mono", monospace';
   ctx.fillText('CERTIFICATE OF PARTICIPATION', 120, 170);
   ctx.fillRect(120, 213, 88, 3);
-  ctx.font = '64px Georgia, serif';
+  ctx.font = '500 64px "IBM Plex Sans", sans-serif';
   ctx.fillText(event.name.trim().slice(0, 120), 120, 335, 1160);
   ctx.fillStyle = '#46524b';
-  ctx.font = '28px sans-serif';
+  ctx.font = '28px "IBM Plex Sans", sans-serif';
   const words = event.description.trim().slice(0, 250).split(/\s+/);
   let line = '', row = 0;
   for (const word of words) {
@@ -35,12 +35,12 @@ export async function drawCertificate(event, framed = true) {
   }
   if (line) ctx.fillText(line, 120, 420 + row * 42, 1160);
   ctx.fillStyle = '#284b3d';
-  ctx.font = '28px sans-serif';
+  ctx.font = '28px "IBM Plex Sans", sans-serif';
   ctx.fillText(event.organizer || 'Event organizer', 120, 750, 1000);
-  ctx.font = '22px monospace';
+  ctx.font = '22px "IBM Plex Mono", monospace';
   ctx.fillText(event.date || '', 120, 795);
   ctx.fillStyle = '#647068';
-  ctx.font = '18px sans-serif';
+  ctx.font = '18px "IBM Plex Sans", sans-serif';
   ctx.fillText('Recipient ownership is recorded in the event contract.', 120, 885);
   return new Promise((resolve, reject) => canvas.toBlob(blob => {
     if (blob) resolve(new File([blob], 'certificate.png', { type: 'image/png' }));
