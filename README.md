@@ -1,117 +1,49 @@
-# Blockchain Certificate System
+# DecentraCert
 
-A decentralized certificate system using soulbound NFTs on Ethereum Sepolia testnet.
+Wallet-bound participation certificates for college events. Built with React, Express and Solidity, using Sepolia or a local Hardhat chain. [Hosted app](https://decentracert.onrender.com).
 
-## Environment Variables
+- Publish an event with a fixed participant list and IPFS metadata.
+- Import a claim file, claim once and share a public verification link.
+- Save event contracts in the browser and export loaded claims as CSV.
 
-Create a `.env` file in the root directory with the following variables:
+## Run locally
 
-### Required for Backend (server.js)
-```
-PINATA_JWT=your_pinata_jwt_token
-ETHERSCAN_API_KEY=your_etherscan_api_key
-SEPOLIA_API_URL=https://sepolia.infura.io/v3/your_infura_project_id
-PORT=3001
-```
+Use Node **22.23.3**, also pinned in `.node-version`.
 
-### Required for Frontend
-```
-(Optional) - REACT_APP_DEPLOYED_CONTRACT_ADDRESS=your_deployed_contract_address
-SEPOLIA_API_URL=https://sepolia.infura.io/v3/your_infura_project_id
+```sh
+git clone https://github.com/decentracert/decentracert.git
+cd decentracert
+npm ci
+npm run demo
 ```
 
-### Required for Hardhat (deployment)
-```
-SEPOLIA_API_URL=https://sepolia.infura.io/v3/your_infura_project_id
-PRIVATE_KEY=your_deployment_private_key
-ETHERSCAN_API_KEY=your_etherscan_api_key
-```
+Open **http://localhost:3001**. The demo starts a local chain, publishes an event and claims one certificate, so you can try verification without a wallet or credentials. Data resets each run. Stop it with Ctrl+C.
 
-## Installation
+To try claiming with MetaMask, restart with `DEMO_WALLET=0xYourWalletAddress npm run demo`. Add a custom network with RPC `http://127.0.0.1:8545`, chain ID `31337` and symbol `ETH`. The demo funds that address with local test ETH. Download the demo claim file and import it on the claim page.
 
-1. Clone this repository:
-   ```
-   git clone https://github.com/blockchain-isfcr/decentracert
-   cd decentracert
-   ```
+## Develop or use Sepolia
 
-2. Install dependencies:
-   ```
-   npm install
-   ```
+Stop the demo first. Copy `.env.example` to `.env`; the default public RPC is enough for verification. For uploads, set `PINATA_JWT` and a random `UPLOAD_KEY` of at least 24 characters. Only share that key with event organizers. Existing IPFS metadata works without upload credentials.
 
-3. Create a `.env` file in the root directory with your credentials:
-   ```
-   SEPOLIA_API_URL=https://sepolia.infura.io/v3/YOUR_INFURA_API_KEY
-   PRIVATE_KEY=YOUR_WALLET_PRIVATE_KEY
-   ETHERSCAN_API_KEY=YOUR_ETHERSCAN_API_KEY
-   PINATA_API_KEY=YOUR_PINATA_API_KEY
-   PINATA_API_SECRET=YOUR_PINATA_API_SECRET
-   PINATA_JWT=YOUR_PINATA_JWT
-   PORT=3000
-   ```
-
-4. Compile the smart contracts:
-   ```
-   npm run build
-   ```
-
-5. Start the frontend:
-   ```
-   npm start
-   ```
-
-### Deploying the Contract
-
-You can deploy the contract either through the Organizer Portal in the web interface or using Hardhat:
-
-```
-npx hardhat run scripts/deploy.js --network sepolia
+```sh
+cp .env.example .env
+npm run dev                 # React on :3000, API on :3001
+# or serve a production build
+npm run build
+npm start                   # app and API on :3001
 ```
 
-## Workflow
+Issuing and claiming on Sepolia need MetaMask and Sepolia test ETH. Publish from the Issue page, save the claim file and share it with participants. The Render setup in `render.yaml` uses the same build and start commands.
 
-### For Organizers
-
-1. Go to the Organizer Portal
-2. Enter event details and list of participant wallet addresses
-3. Generate Merkle tree and download proofs
-4. Upload certificate image to IPFS
-5. Deploy the smart contract with the Merkle root
-6. Share contract address and Merkle proofs with participants
-
-### For Students
-
-1. Go to the Student Portal
-2. Connect your MetaMask wallet
-3. Enter the contract address and your Merkle proof
-4. If eligible, claim your certificate NFT
-
-## Smart Contract
-
-The smart contract is deployed on the Ethereum Sepolia testnet and can be interacted with directly or through the provided frontend. The contract implements:
-
-- ERC721 NFT standard
-- Merkle proof verification for whitelisting
-- Certificate claiming functionality
-- Ownership management
-
-## Development
-
-To run tests:
-```
-npx hardhat test
+```sh
+npm test                    # contract, utility and HTTP tests
+npm run demo -- --check      # local deployment, claim and API check, then exit
 ```
 
-To deploy to Sepolia testnet:
-```
-npx hardhat run scripts/deploy.js --network sepolia
-```
+## How it works
 
-## License
+The browser hashes participant addresses into a sorted-pair Merkle tree. Each event contract stores its root, issuer and metadata URI at deployment. A wallet submits its proof to mint one ERC721 certificate; transfers and approvals are disabled. The claim file carries the proofs, and the browser checks its event details against the contract before claiming.
 
-MIT
+Images and metadata live on IPFS. Express protects uploads and reads the chain for public verification, including `ownerOf`; RPC credentials stay on the server. Saved addresses use localStorage, and claim history loads 2000 blocks at a time.
 
-## Contact
-
-For questions or support, please open an issue in the repository. 
+A record proves ownership from a contract, not the issuer's real identity. Older contracts allowed claimant-selected metadata and are marked as legacy. See [security notes](SECURITY.md) for limits and remaining dependency advisories. [MIT license](LICENSE); bundled fonts use [OFL](src/fonts/OFL.txt).
